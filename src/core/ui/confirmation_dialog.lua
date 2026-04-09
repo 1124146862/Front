@@ -1,3 +1,4 @@
+local ButtonText = require("src.core.ui.button_text")
 local WoodButton = require("src.core.ui.wood_button")
 local WoodPanel = require("src.core.ui.wood_panel")
 
@@ -19,6 +20,34 @@ local function contains(bounds, x, y)
         and x <= bounds.x + bounds.width
         and y >= bounds.y
         and y <= bounds.y + bounds.height
+end
+
+local function withAlpha(color, alpha)
+    if type(color) ~= "table" then
+        return { 1, 1, 1, alpha }
+    end
+
+    return {
+        color[1] or 1,
+        color[2] or 1,
+        color[3] or 1,
+        alpha == nil and (color[4] or 1) or alpha,
+    }
+end
+
+local function resolveTextPalette(colors)
+    colors = colors or {}
+
+    local title = colors.hud_title or colors.button_primary_text or colors.text_primary or { 0.39, 0.18, 0.08, 1 }
+    local message = colors.hud_subtext or colors.button_secondary_text or colors.text_secondary or title
+    local shadow = colors.hud_text_shadow or { 0.98, 0.9, 0.76, 0.42 }
+
+    return {
+        title = title,
+        message = message,
+        title_shadow = withAlpha(shadow, math.min(0.62, (shadow[4] or 1) * 0.95)),
+        message_shadow = withAlpha(shadow, math.min(0.46, (shadow[4] or 1) * 0.72)),
+    }
 end
 
 function ConfirmationDialog.new(options)
@@ -94,8 +123,12 @@ function ConfirmationDialog:draw(config, window_width, window_height, hovered_co
     local message_bounds = self:getMessageBounds(window_width, window_height)
     local buttons = self:getButtonBounds(window_width, window_height)
     local colors = self.style.colors or {}
+    local text_palette = resolveTextPalette(colors)
     local title_font = self.fonts:get("Title3")
     local message_font = self.fonts:get("Text")
+    local _, wrapped_lines = message_font:getWrap(tostring(config.message or ""), message_bounds.width)
+    local line_count = math.max(1, #wrapped_lines)
+    local message_y = message_bounds.y + math.floor((message_bounds.height - line_count * message_font:getHeight()) * 0.5) - 1
 
     love.graphics.setColor(0.05, 0.03, 0.01, 0.58)
     love.graphics.rectangle("fill", 0, 0, window_width, window_height)
@@ -108,18 +141,25 @@ function ConfirmationDialog:draw(config, window_width, window_height, hovered_co
         inner_border_width = 1,
     })
 
-    love.graphics.setFont(title_font)
-    love.graphics.setColor(colors.text_primary or { 0.39, 0.18, 0.08, 1 })
-    love.graphics.printf(tostring(config.title or ""), frame.x + 20, frame.y + 18, frame.width - 40, "center")
+    ButtonText.draw(title_font, tostring(config.title or ""), frame.x + 20, frame.y + 18, frame.width - 40, "center", text_palette.title, {
+        bold = true,
+        bold_offset = 1,
+        shadow_color = text_palette.title_shadow,
+    })
 
-    love.graphics.setFont(message_font)
-    love.graphics.setColor(colors.text_secondary or { 0.55, 0.30, 0.12, 1 })
-    love.graphics.printf(
+    ButtonText.draw(
+        message_font,
         tostring(config.message or ""),
         message_bounds.x,
-        message_bounds.y,
+        message_y,
         message_bounds.width,
-        "center"
+        "center",
+        text_palette.message,
+        {
+            bold = true,
+            bold_offset = 1,
+            shadow_color = text_palette.message_shadow,
+        }
     )
 
     WoodButton.draw(self.fonts, self.style, {

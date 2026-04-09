@@ -126,6 +126,7 @@ function SessionService:returnToMainMenu(steam_id)
             ok = false,
             cleaned_room_ids = {},
             deleted_room_ids = {},
+            managed_room_ids = {},
             message = response.error or "return_to_main_menu_failed",
         }
     end
@@ -135,6 +136,7 @@ function SessionService:returnToMainMenu(steam_id)
         ok = true,
         cleaned_room_ids = data.cleaned_room_ids or {},
         deleted_room_ids = data.deleted_room_ids or {},
+        managed_room_ids = data.managed_room_ids or {},
         message = data.message or "returned_to_main_menu",
     }
 end

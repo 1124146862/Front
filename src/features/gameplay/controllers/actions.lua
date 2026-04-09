@@ -211,14 +211,16 @@ function Actions.leaveToMainMenu(controller)
     state.rematch_leave_button_hovered = false
     state.status_message = I18n:t("gameplay.leaving_room")
 
-    local result = controller.service:leaveRoom(state.room_id, state.steam_id)
+    local result = controller.service:returnToMainMenu(state.steam_id)
     state.action_waiting = false
 
     print(string.format(
-        "[gameplay] leaveToMainMenu result ok=%s room_id=%s steam_id=%s message=%s",
+        "[gameplay] leaveToMainMenu result ok=%s room_id=%s steam_id=%s managed=%s deleted=%s message=%s",
         tostring(result and result.ok),
         tostring(state.room_id),
         tostring(state.steam_id),
+        tostring(result and table.concat(result.managed_room_ids or {}, ",")),
+        tostring(result and table.concat(result.deleted_room_ids or {}, ",")),
         tostring(result and result.message)
     ))
 

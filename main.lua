@@ -327,11 +327,12 @@ local function cleanupMainMenuRoomPresence(user_profile)
     app.last_main_menu_cleanup_steam_id = steam_id
     app.last_main_menu_cleanup_at = now
     print(string.format(
-        "[main] cleanupMainMenuRoomPresence steam_id=%s ok=%s cleaned=%s deleted=%s message=%s",
+        "[main] cleanupMainMenuRoomPresence steam_id=%s ok=%s cleaned=%s deleted=%s managed=%s message=%s",
         tostring(steam_id),
         tostring(result and result.ok),
         tostring(result and table.concat(result.cleaned_room_ids or {}, ",")),
         tostring(result and table.concat(result.deleted_room_ids or {}, ",")),
+        tostring(result and table.concat(result.managed_room_ids or {}, ",")),
         tostring(result and result.message)
     ))
 end
@@ -1131,6 +1132,7 @@ end
 
 function love.quit()
     flushPendingCardSettingsSave(true)
+    cleanupMainMenuRoomPresence(app.user_profile)
     if app.matchmaking and app.matchmaking.shutdown then
         app.matchmaking:shutdown()
     end

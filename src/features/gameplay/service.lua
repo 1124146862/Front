@@ -143,6 +143,31 @@ function GameplayService:leaveRoom(room_id, steam_id)
     }
 end
 
+function GameplayService:returnToMainMenu(steam_id)
+    local response = self.http_client:post("/session/return-to-main-menu", {
+        steam_id = steam_id,
+    })
+
+    if not response.ok then
+        return {
+            ok = false,
+            cleaned_room_ids = {},
+            deleted_room_ids = {},
+            managed_room_ids = {},
+            message = response.error or I18n:t("gameplay.realtime_failed"),
+        }
+    end
+
+    local data = response.data or {}
+    return {
+        ok = true,
+        cleaned_room_ids = data.cleaned_room_ids or {},
+        deleted_room_ids = data.deleted_room_ids or {},
+        managed_room_ids = data.managed_room_ids or {},
+        message = data.message or "returned_to_main_menu",
+    }
+end
+
 function GameplayService:debugAutoplayHand(command_id)
     if not self.ws_client then
         return
