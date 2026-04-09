@@ -5,6 +5,8 @@ local Platform = require("src.infra.system.platform")
 local BRIDGE_TIMEOUT_SECONDS = 3.0
 local BRIDGE_POLL_INTERVAL_SECONDS = 0.01
 local BRIDGE_SCRIPT_NAME = "guandan_steam_id_bridge.ps1"
+local REAL_STEAM_ID_PREFIX = "7656119"
+local REAL_STEAM_ID_LENGTH = 17
 
 local function fileExists(path)
     if not path or path == "" then
@@ -142,7 +144,7 @@ local function parseSteamIdFromOutput(output)
     for line in normalized_output:gmatch("([^\r\n]+)") do
         line = line:gsub("^\239\187\191", "")
         local steam_id = line:match("^%s*(%d+)%s*$")
-        if steam_id then
+        if steam_id and #steam_id == REAL_STEAM_ID_LENGTH and steam_id:sub(1, #REAL_STEAM_ID_PREFIX) == REAL_STEAM_ID_PREFIX then
             return steam_id
         end
     end
@@ -288,7 +290,7 @@ local function getSteamIDFromBinding(binding)
         if steam and type(steam.GetSteamID) == "function" then
             local ok, steam_id = pcall(steam.GetSteamID, steam)
             if ok and steam_id ~= nil then
-                return tostring(steam_id)
+                return parseSteamIdFromOutput(tostring(steam_id))
             end
         end
 
@@ -299,7 +301,7 @@ local function getSteamIDFromBinding(binding)
                 if user and type(user.GetSteamID) == "function" then
                     local ok, steam_id = pcall(user.GetSteamID, user)
                     if ok and steam_id ~= nil then
-                        return tostring(steam_id)
+                        return parseSteamIdFromOutput(tostring(steam_id))
                     end
                 end
             end
@@ -323,28 +325,12 @@ local function getSteamIDFromBridge(path)
     return runBridge(resolved_path)
 end
 
-local function randomDigits(count)
-    local digits = {}
-    for _ = 1, count do
-        digits[#digits + 1] = tostring(love.math.random(0, 9))
-    end
-    return table.concat(digits)
-end
-
-local function generateRandomSteamID()
-    -- Keep the test Steam ID numeric and long enough to resemble a real account id.
-    return "7" .. randomDigits(9)
-end
-
 function SteamIDProvider.new(options)
     local self = setmetatable({}, SteamIDProvider)
 
     options = options or {}
     self.source = options.source or "auto"
-    self.fake_steam_id = tostring(options.fake_steam_id or "")
-    self.random_for_test = options.random_for_test == true
     self.bridge_path = tostring(options.bridge_path or "")
-    self.generated_steam_id = nil
 
     return self
 end
@@ -365,32 +351,17 @@ function SteamIDProvider:tryResolveSteamID()
     return nil
 end
 
-function SteamIDProvider:generateFallbackSteamID()
-    if self.random_for_test then
-        if not self.generated_steam_id then
-            self.generated_steam_id = generateRandomSteamID()
-        end
-        return self.generated_steam_id
-    end
-
-    if self.fake_steam_id ~= "" then
-        return self.fake_steam_id
-    end
-
-    return nil
-end
-
 function SteamIDProvider:getSteamID()
     local steam_id = self:tryResolveSteamID()
     if steam_id and steam_id ~= "" then
         return steam_id
     end
 
-    if self.source == "fake" then
-        return self.fake_steam_id ~= "" and self.fake_steam_id or self:generateFallbackSteamID()
-    end
+    return nil
+end
 
-    return self:generateFallbackSteamID()
+function SteamIDProvider.isRealSteamID(value)
+    return parseSteamIdFromOutput(tostring(value or "")) ~= nil
 end
 
 return SteamIDProvider

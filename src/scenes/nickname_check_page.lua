@@ -29,6 +29,7 @@ function NicknameCheckPage.new(options)
         service = SessionService.new({
             http_client = HttpClient.new(),
         }),
+        steam_id_provider = options and options.steam_id_provider or nil,
         initial_steam_id = options and options.initial_steam_id or nil,
         initial_fetch_result = options and options.initial_fetch_result or nil,
         force_edit = options and options.force_edit or false,

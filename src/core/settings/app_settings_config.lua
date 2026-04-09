@@ -6,8 +6,6 @@ local default_urls = AppConfig.buildBaseUrls(default_network)
 return {
     language = "zh-CN",
     steam_id_source = "auto",
-    fake_steam_id = "5000000000",
-    steam_id_random_for_test = true,
     server_host = default_network.host,
     server_port = default_network.port,
     server_use_tls = default_network.use_tls,

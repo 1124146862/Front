@@ -11,6 +11,7 @@ local QUERY_DELAY = 0.45
 local SUBMIT_DELAY = 0.55
 local PRESS_FEEDBACK_DURATION = 0.11
 local NICKNAME_RANDOM_ONLY = true
+local MISSING_REAL_STEAM_ID_MESSAGE = "未检测到真实 SteamID，请通过 Steam 启动游戏并确认已登录。"
 
 local function utf8Length(text)
     local _, count = string.gsub(text or "", "[^\128-\193]", "")
@@ -171,7 +172,7 @@ function Controller.new(options)
     self:refreshAvatarPage()
 
     if self.initial_fetch_result ~= nil then
-        self.state.steam_id = self.initial_steam_id or (self.steam_id_provider and self.steam_id_provider:getSteamID()) or ""
+        self:resolveSteamID()
         if self.force_edit then
             self:enterForcedEdit(self.initial_fetch_result)
         else
@@ -253,6 +254,22 @@ function Controller:clearNickname()
     self.state.error_message = ""
 end
 
+function Controller:resolveSteamID()
+    local steam_id = self.initial_steam_id or (self.steam_id_provider and self.steam_id_provider:getSteamID()) or ""
+    self.state.steam_id = steam_id
+    return steam_id
+end
+
+function Controller:showMissingSteamIDError()
+    self.state.phase = "editing"
+    self.state.query_pending = false
+    self.state.submit_pending = false
+    self.state.status_message = ""
+    self.state.error_message = MISSING_REAL_STEAM_ID_MESSAGE
+    self.state.input_focused = false
+    self.pending_request = nil
+end
+
 function Controller:randomizeNickname()
     self.state.nickname_input = self.nickname_generator:generate(I18n:getLocale())
     self.state.error_message = ""
@@ -274,7 +291,10 @@ function Controller:autoRandomizeIfNeeded()
 end
 
 function Controller:beginCheck()
-    self.state.steam_id = self.initial_steam_id or (self.steam_id_provider and self.steam_id_provider:getSteamID()) or ""
+    if self:resolveSteamID() == "" then
+        self:showMissingSteamIDError()
+        return
+    end
     self.state.phase = "checking"
     self.state.query_pending = true
     self.state.submit_pending = false
@@ -309,6 +329,10 @@ function Controller:update(dt)
 end
 
 function Controller:resolveFetchNickname()
+    if tostring(self.state.steam_id or "") == "" then
+        self:showMissingSteamIDError()
+        return
+    end
     local result = self.service:fetchNicknameBySteamID(self.state.steam_id)
     self.state.query_pending = false
     if self.force_edit then
@@ -496,6 +520,11 @@ end
 
 function Controller:submit()
     if self.state.phase ~= "editing" or self.state.submit_pending or self.state.query_pending then
+        return
+    end
+
+    if tostring(self.state.steam_id or "") == "" then
+        self:showMissingSteamIDError()
         return
     end
 

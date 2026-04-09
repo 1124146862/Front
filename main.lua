@@ -40,6 +40,7 @@ local app = {
     settings = nil,
     settings_store = nil,
     steam_id = nil,
+    steam_id_provider = nil,
     user_profile = {},
     did_auto_random_nickname = false,
     target_fps = 60,
@@ -293,6 +294,20 @@ local function createSessionService()
     return SessionService.new({
         http_client = HttpClient.new(),
     })
+end
+
+local function resolveCurrentSteamID()
+    if not app.steam_id_provider or type(app.steam_id_provider.getSteamID) ~= "function" then
+        return app.steam_id
+    end
+
+    local steam_id = app.steam_id_provider:getSteamID()
+    if steam_id and steam_id ~= "" then
+        app.steam_id = steam_id
+    else
+        app.steam_id = nil
+    end
+    return app.steam_id
 end
 
 local function cleanupMainMenuRoomPresence(user_profile)
@@ -864,6 +879,7 @@ showProfileEditorPage = function()
     setScene(NicknameCheckPage.new({
         fonts = app.fonts,
         backgrounds = app.backgrounds,
+        steam_id_provider = app.steam_id_provider,
         initial_steam_id = steam_id,
         force_edit = true,
         on_close = function()
@@ -881,6 +897,7 @@ local function showNicknameCheckPage()
     setScene(NicknameCheckPage.new({
         fonts = app.fonts,
         backgrounds = app.backgrounds,
+        steam_id_provider = app.steam_id_provider,
         on_session_ready = function(user_profile)
             showMainMenuPage(user_profile)
         end,
@@ -889,7 +906,25 @@ local function showNicknameCheckPage()
 end
 
 local function resolveSessionAndEnter()
-    local steam_id = app.steam_id
+    local steam_id = resolveCurrentSteamID()
+    if not steam_id or steam_id == "" then
+        setScene(NicknameCheckPage.new({
+            fonts = app.fonts,
+            backgrounds = app.backgrounds,
+            steam_id_provider = app.steam_id_provider,
+            initial_fetch_result = {
+                ok = false,
+                exists = false,
+                message = "未检测到真实 SteamID，请通过 Steam 启动游戏并确认已登录。",
+            },
+            on_session_ready = function(user_profile)
+                showMainMenuPage(user_profile)
+            end,
+        }))
+        setSceneBgm("nickname_check")
+        return
+    end
+
     local session_service = createSessionService()
     local result = session_service:fetchNicknameBySteamID(steam_id)
 
@@ -902,6 +937,7 @@ local function resolveSessionAndEnter()
     setScene(NicknameCheckPage.new({
         fonts = app.fonts,
         backgrounds = app.backgrounds,
+        steam_id_provider = app.steam_id_provider,
         initial_steam_id = steam_id,
         initial_fetch_result = result,
         auto_randomize = should_auto_random,
@@ -1015,11 +1051,10 @@ function love.load()
     app.user_profile.language = app.settings.language
     app.user_profile.coins = tonumber(app.user_profile.coins) or 300
     app.user_profile.accessories = normalizeAccessories(app.user_profile.accessories)
-    app.steam_id = SteamIDProvider.new({
+    app.steam_id_provider = SteamIDProvider.new({
         source = app.settings.steam_id_source,
-        fake_steam_id = app.settings.fake_steam_id,
-        random_for_test = app.settings.steam_id_random_for_test,
-    }):getSteamID()
+    })
+    app.steam_id = resolveCurrentSteamID()
 
     showWelcomePage()
 end
