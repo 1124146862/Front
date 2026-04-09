@@ -1,5 +1,6 @@
 local RoomPageActionButton = {}
 RoomPageActionButton.__index = RoomPageActionButton
+local WoodButton = require("src.core.ui.wood_button")
 
 function RoomPageActionButton.new(options)
     local self = setmetatable({}, RoomPageActionButton)
@@ -12,6 +13,8 @@ function RoomPageActionButton.new(options)
     self.height = options.height or 48
     self.hovered = options.hovered == true
     self.enabled = options.enabled ~= false
+    self.variant = options.variant or "secondary"
+    self.font_token = options.font_token or "Text"
 
     return self
 end
@@ -21,21 +24,21 @@ function RoomPageActionButton:containsPoint(x, y)
 end
 
 function RoomPageActionButton:draw(fonts, style)
-    local colors = style.colors
-    local background = colors.button
-
-    if not self.enabled then
-        background = colors.button_disabled
-    elseif self.hovered then
-        background = colors.button_hover
-    end
-
-    love.graphics.setColor(background)
-    love.graphics.rectangle("fill", self.x, self.y, self.width, self.height, 8, 8)
-
-    love.graphics.setColor(colors.text_primary)
-    love.graphics.setFont(fonts:get("TextSmall"))
-    love.graphics.printf(self.label, self.x, self.y + 13, self.width, "center")
+    WoodButton.draw(fonts, style, {
+        label = self.label,
+        x = self.x,
+        y = self.y,
+        width = self.width,
+        height = self.height,
+        hovered = self.hovered,
+        enabled = self.enabled,
+        variant = self.variant,
+        font_token = self.font_token,
+        radius = 12,
+        shadow_offset = 4,
+        inner_inset = 5,
+        light_chrome = true,
+    })
 end
 
 return RoomPageActionButton

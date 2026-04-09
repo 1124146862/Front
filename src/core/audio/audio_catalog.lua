@@ -1,0 +1,26 @@
+return {
+    bgm = {
+        main = "assets/audio/main_bgm.mp3",
+        game_default = "assets/audio/game_bgm.mp3",
+        bgm1 = "assets/audio/bmg1.mp3",
+        bgm2 = "assets/audio/bgm2.mp3",
+        bgm3 = "assets/audio/bgm3.mp3",
+        bgm4 = "assets/audio/bgm4.mp3",
+        bgm5 = "assets/audio/bgm5.mp3",
+    },
+    sfx = {
+        beep = "assets/audio/beep.mp3",
+        click_button = "assets/audio/click_button.mp3",
+        card_click = "assets/audio/card_selected.mp3",
+        play_card = "assets/audio/PLAY_CARD.mp3",
+        bomb_sound = "assets/audio/bomb.mp3",
+        pass_sound = "assets/audio/PASS_SOUND.mp3",
+        dealing = "assets/audio/dealing.mp3",
+        turn_timer = "assets/audio/timer.mp3",
+        hand_count_alert = "assets/audio/dingdingding.mp3",
+        win_round = "assets/audio/win.mp3",
+        failed_round = "assets/audio/fail.mp3",
+        anti_tribute = "assets/audio/kanggong.mp3",
+        hand_reveal = "assets/audio/shoupai.mp3",
+    },
+}

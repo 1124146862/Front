@@ -1,0 +1,3 @@
+steam_id=76561198964368608
+http_mode=windows_packaged_bridge
+http_bridge=D:\DATA\Onedrive\GuanDan\Front\.\tools\http_bridge.exe

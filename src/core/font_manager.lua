@@ -1,17 +1,9 @@
 local FontManager = {}
 FontManager.__index = FontManager
+local FontConfig = require("src.core.font_config")
+local I18n = require("src.core.i18n.i18n")
 
-FontManager.tokens = {
-    Title1 = 96,
-    Title2 = 52,
-    Title3 = 38,
-    TextBig = 28,
-    Text = 24,
-    TextSmall = 20,
-    Button = 30,
-    Caption = 18,
-    Label = 16,
-}
+FontManager.tokens = FontConfig.tokens
 
 local function loadFont(path, size)
     local ok, font = pcall(love.graphics.newFont, path, size)
@@ -22,16 +14,29 @@ local function loadFont(path, size)
     return love.graphics.newFont(size)
 end
 
+local function resolveFontPathForLocale(default_path, locale)
+    return FontConfig.resolveLocaleFontPath(
+        default_path,
+        FontConfig.ui_locale_font_paths,
+        locale
+    )
+end
+
 function FontManager.new(options)
     local self = setmetatable({}, FontManager)
 
-    self.font_path = (options and options.font_path) or "assets/fonts/zh.otf"
+    self.font_path = FontConfig.ui_font_path
+    self.tokens = FontConfig.tokens
     self.cache = {}
 
     return self
 end
 
 function FontManager:get(token)
+    return self:getForLocale(token, I18n:getLocale())
+end
+
+function FontManager:getForLocale(token, locale)
     local key = token
     local size = token
 
@@ -43,11 +48,18 @@ function FontManager:get(token)
         error("Unknown font token: " .. tostring(token))
     end
 
-    if not self.cache[key] then
-        self.cache[key] = loadFont(self.font_path, size)
+    local font_path = resolveFontPathForLocale(self.font_path, locale)
+    local cache_key = table.concat({
+        tostring(font_path),
+        tostring(key),
+        tostring(size),
+    }, "::")
+
+    if not self.cache[cache_key] then
+        self.cache[cache_key] = loadFont(font_path, size)
     end
 
-    return self.cache[key]
+    return self.cache[cache_key]
 end
 
 function FontManager:getSize(token)

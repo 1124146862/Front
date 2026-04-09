@@ -4,6 +4,7 @@ local State = require("src.features.lobby.state")
 local Style = require("src.features.lobby.style")
 local LobbyView = require("src.features.lobby.views.lobby_view")
 local HttpClient = require("src.infra.network.http_client")
+local LoadingOverlay = require("src.core.ui.loading_overlay")
 
 local LobbyPage = {}
 LobbyPage.__index = LobbyPage
@@ -16,10 +17,15 @@ function LobbyPage.new(options)
     local on_enter_room = assert(options and options.on_enter_room, "LobbyPage requires on_enter_room")
     local user_profile = assert(options and options.user_profile, "LobbyPage requires user_profile")
 
+    self.backgrounds = options and options.backgrounds or nil
     self.state = State.create()
     self.view = LobbyView.new({
         fonts = fonts,
         style = Style,
+    })
+    self.loading_overlay = LoadingOverlay.new({
+        fonts = fonts,
+        message_key = "common.loading",
     })
     self.controller = Controller.new({
         state = self.state,
@@ -34,8 +40,23 @@ function LobbyPage.new(options)
     return self
 end
 
+function LobbyPage:update(dt)
+    self.controller:update(dt)
+    local state = self.state
+    local busy = state.server_loading_visible
+        or state.loading
+        or state.submitting
+    if busy then
+        self.loading_overlay:show(state.server_loading_message or state.status_message)
+    else
+        self.loading_overlay:hide()
+    end
+    self.loading_overlay:update(dt)
+end
+
 function LobbyPage:draw()
     self.view:draw(self.state)
+    self.loading_overlay:draw(love.graphics.getWidth(), love.graphics.getHeight())
 end
 
 function LobbyPage:mousemoved(x, y)
@@ -43,7 +64,7 @@ function LobbyPage:mousemoved(x, y)
 end
 
 function LobbyPage:mousepressed(x, y, button)
-    self.controller:mousepressed(x, y, button, self.view)
+    return self.controller:mousepressed(x, y, button, self.view)
 end
 
 function LobbyPage:keypressed(key)
