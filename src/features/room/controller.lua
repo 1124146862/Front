@@ -11,7 +11,25 @@ local ROOM_MODE_OPTIONS = {
 }
 
 local function sameSteamID(left, right)
-    return tostring(left or "") == tostring(right or "")
+    local left_text = tostring(left or "")
+    local right_text = tostring(right or "")
+    return left_text ~= "" and left_text == right_text
+end
+
+local function isRequesterOwner(room, state)
+    if (room or {}).requester_is_owner == true then
+        return true
+    end
+    return sameSteamID((room or {}).owner_steam_id, (state or {}).steam_id)
+end
+
+local function findSelfPlayer(room, state)
+    for _, player in ipairs((room and room.players) or {}) do
+        if player.is_self == true or sameSteamID(player.steam_id, (state or {}).steam_id) then
+            return player
+        end
+    end
+    return nil
 end
 
 local function trim(text)
@@ -92,7 +110,7 @@ function Controller:maybeBootstrapSinglePlayer()
         return
     end
 
-    if self.state.realtime_status ~= "connected" or self.state.loading or self.state.saving or self.state.leaving then
+    if self.state.loading or self.state.saving or self.state.leaving then
         return
     end
 
@@ -102,7 +120,7 @@ function Controller:maybeBootstrapSinglePlayer()
         return
     end
 
-    if not sameSteamID(room.owner_steam_id, self.state.steam_id) then
+    if not isRequesterOwner(room, self.state) then
         return
     end
 
@@ -112,23 +130,17 @@ function Controller:maybeBootstrapSinglePlayer()
         self.state.saving = true
         self.state.error_message = ""
         self.state.status_message = I18n:t("room.adding_bot")
-        self.service:addBot()
+        self:handleRoomResult(self.service:addBot(self.state.room_id, self.state.steam_id))
         return
     end
 
-    local me_ready = false
-    for _, player in ipairs(players) do
-        if sameSteamID(player.steam_id, self.state.steam_id) then
-            me_ready = player.is_ready == true
-            break
-        end
-    end
+    local me_ready = (findSelfPlayer(room, self.state) or {}).is_ready == true
 
     if not me_ready then
         self.state.saving = true
         self.state.error_message = ""
         self.state.status_message = I18n:t("room.saving_ready")
-        self.service:setReady(true)
+        self:handleRoomResult(self.service:setReady(self.state.room_id, self.state.steam_id, true))
         return
     end
 
@@ -315,34 +327,16 @@ function Controller:refreshRoom()
 end
 
 function Controller:toggleReady()
-    if self.state.realtime_status ~= "connected" then
-        self.state.error_message = I18n:t("room.realtime_not_ready")
-        self.state.status_message = ""
-        return
-    end
-
     local room = self.state.room or {}
-    local me_ready = false
-    for _, player in ipairs(room.players or {}) do
-        if sameSteamID(player.steam_id, self.state.steam_id) then
-            me_ready = player.is_ready == true
-            break
-        end
-    end
+    local me_ready = (findSelfPlayer(room, self.state) or {}).is_ready == true
 
     self.state.saving = true
     self.state.error_message = ""
     self.state.status_message = me_ready and I18n:t("room.saving_cancel_ready") or I18n:t("room.saving_ready")
-    self.service:setReady(not me_ready)
+    self:handleRoomResult(self.service:setReady(self.state.room_id, self.state.steam_id, not me_ready))
 end
 
 function Controller:saveConfig()
-    if self.state.realtime_status ~= "connected" then
-        self.state.error_message = I18n:t("room.realtime_not_ready")
-        self.state.status_message = ""
-        return
-    end
-
     local room = self.state.room or {}
     local title = trim(self.state.config_title_input)
     local mode = normalizeRoomMode(self.state.config_mode_input)
@@ -356,7 +350,13 @@ function Controller:saveConfig()
     self.state.saving = true
     self.state.error_message = ""
     self.state.status_message = I18n:t("room.saving_config")
-    self.service:updateConfig(title, mode, trim(self.state.config_password_input))
+    self:handleRoomResult(self.service:updateConfig(
+        self.state.room_id,
+        self.state.steam_id,
+        title,
+        mode,
+        trim(self.state.config_password_input)
+    ))
 end
 
 function Controller:setConfigMode(mode)
@@ -371,27 +371,23 @@ function Controller:saveConfigWithMode(mode)
 end
 
 function Controller:leaveRoom()
-    if self.state.realtime_status ~= "connected" then
-        self.state.error_message = I18n:t("room.realtime_not_ready")
-        self.state.status_message = ""
-        return
-    end
-
     self.state.leaving = true
     self.state.error_message = ""
     self.state.status_message = I18n:t("room.leaving")
-    self.service:leaveRoom()
-end
-
-function Controller:addBot()
-    if self.state.realtime_status ~= "connected" then
-        self.state.error_message = I18n:t("room.realtime_not_ready")
+    local result = self.service:leaveRoom(self.state.room_id, self.state.steam_id)
+    self.state.leaving = false
+    if not result.ok then
+        self.state.error_message = result.message or I18n:t("room.load_failed")
         self.state.status_message = ""
         return
     end
+    self.service:disconnectRoomChannel()
+    self.on_back_to_lobby()
+end
 
+function Controller:addBot()
     local room = self.state.room or {}
-    if not sameSteamID(room.owner_steam_id, self.state.steam_id) then
+    if not isRequesterOwner(room, self.state) then
         self.state.error_message = I18n:t("room.only_owner_add_bot")
         self.state.status_message = ""
         return
@@ -400,18 +396,12 @@ function Controller:addBot()
     self.state.saving = true
     self.state.error_message = ""
     self.state.status_message = I18n:t("room.adding_bot")
-    self.service:addBot()
+    self:handleRoomResult(self.service:addBot(self.state.room_id, self.state.steam_id))
 end
 
 function Controller:removeBot(bot_steam_id)
-    if self.state.realtime_status ~= "connected" then
-        self.state.error_message = I18n:t("room.realtime_not_ready")
-        self.state.status_message = ""
-        return
-    end
-
     local room = self.state.room or {}
-    if not sameSteamID(room.owner_steam_id, self.state.steam_id) then
+    if not isRequesterOwner(room, self.state) then
         self.state.error_message = roomText("room.only_owner_remove_bot", "只有房主可以删除 Bot。")
         self.state.status_message = ""
         return
@@ -427,20 +417,14 @@ function Controller:removeBot(bot_steam_id)
     self.state.saving = true
     self.state.error_message = ""
     self.state.status_message = roomText("room.removing_bot", "正在移除测试 Bot...")
-    self.service:removeBot(target_bot_id)
+    self:handleRoomResult(self.service:removeBot(self.state.room_id, self.state.steam_id, target_bot_id))
 end
 
 function Controller:changeSeat(seat_index)
-    if self.state.realtime_status ~= "connected" then
-        self.state.error_message = I18n:t("room.realtime_not_ready")
-        self.state.status_message = ""
-        return
-    end
-
     self.state.saving = true
     self.state.error_message = ""
     self.state.status_message = roomText("room.saving_seat", "正在切换座位...")
-    self.service:changeSeat(seat_index)
+    self:handleRoomResult(self.service:changeSeat(self.state.room_id, self.state.steam_id, seat_index))
 end
 
 function Controller:setFocusedField(field_id)

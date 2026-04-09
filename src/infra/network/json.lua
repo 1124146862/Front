@@ -1,6 +1,38 @@
 local Json = {}
 
 local JSON_NULL = {}
+local MAX_SAFE_INTEGER_TEXT = "9007199254740991"
+
+local function shouldPreserveIntegerAsString(literal)
+    local text = tostring(literal or "")
+    if text == "" then
+        return false
+    end
+
+    local negative = text:sub(1, 1) == "-"
+    if negative then
+        text = text:sub(2)
+    end
+
+    if text == "" or not text:match("^%d+$") then
+        return false
+    end
+
+    text = text:gsub("^0+", "")
+    if text == "" then
+        text = "0"
+    end
+
+    if #text > #MAX_SAFE_INTEGER_TEXT then
+        return true
+    end
+
+    if #text < #MAX_SAFE_INTEGER_TEXT then
+        return false
+    end
+
+    return text > MAX_SAFE_INTEGER_TEXT
+end
 
 local function isArray(value)
     if type(value) ~= "table" then
@@ -192,7 +224,12 @@ function Json.decode(raw)
             end
         end
 
-        return tonumber(raw:sub(start_pos, position - 1))
+        local literal = raw:sub(start_pos, position - 1)
+        if not literal:find("[%.eE]") and shouldPreserveIntegerAsString(literal) then
+            return literal
+        end
+
+        return tonumber(literal)
     end
 
     local function parseArray()

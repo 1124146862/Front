@@ -9,16 +9,46 @@ local I18n = require("src.core.i18n.i18n")
 local RoomView = {}
 RoomView.__index = RoomView
 
-local function sameSteamID(left, right)
-    return tostring(left or "") == tostring(right or "")
-end
-
 local function roomText(key, fallback, params)
     local value = I18n:t(key, params)
     if value == key then
         return fallback
     end
     return value
+end
+
+local function sameSteamID(left, right)
+    local left_text = tostring(left or "")
+    local right_text = tostring(right or "")
+    return left_text ~= "" and left_text == right_text
+end
+
+local function isRequesterOwner(room, state)
+    if (room or {}).requester_is_owner == true then
+        return true
+    end
+    return sameSteamID((room or {}).owner_steam_id, (state or {}).steam_id)
+end
+
+local function isSelfPlayer(player, state)
+    if (player or {}).is_self == true then
+        return true
+    end
+    return sameSteamID((player or {}).steam_id, (state or {}).steam_id)
+end
+
+local function isPlayerReady(player)
+    return (player or {}).is_ready == true
+end
+
+local function resolveSelfReady(state)
+    local room = (state or {}).room or {}
+    for _, player in ipairs(room.players or {}) do
+        if isSelfPlayer(player, state) then
+            return isPlayerReady(player)
+        end
+    end
+    return false
 end
 
 local function fitFont(fonts, text, width, candidates)
@@ -188,8 +218,8 @@ end
 function RoomView:getButtons(state)
     local layout = resolveLayout(self)
     local room = state.room or {}
-    local is_owner = sameSteamID(room.owner_steam_id, state.steam_id)
-    local me_ready = false
+    local is_owner = isRequesterOwner(room, state)
+    local me_ready = resolveSelfReady(state)
     local scale = layout.scale
     local gap = math.floor(20 * scale)
     local mid_w = math.floor(160 * scale)
@@ -201,15 +231,6 @@ function RoomView:getButtons(state)
     local right_start_x = layout.right_x + right_pad
     local right_button_width = layout.right_width - right_pad * 2
 
-    if room.players then
-        for _, player in ipairs(room.players) do
-            if sameSteamID(player.steam_id, state.steam_id) then
-                me_ready = player.is_ready == true
-                break
-            end
-        end
-    end
-
     return {
         RoomPageActionButton.new({
             id = "toggle_ready",
@@ -219,7 +240,7 @@ function RoomView:getButtons(state)
             width = mid_w,
             height = layout.button_height,
             hovered = state.hovered_control == "toggle_ready",
-            enabled = state.realtime_status == "connected" and not state.loading and not state.saving and not state.leaving,
+            enabled = not state.loading and not state.saving and not state.leaving,
             variant = "primary",
         }),
         RoomPageActionButton.new({
@@ -244,7 +265,6 @@ function RoomView:getButtons(state)
             enabled = is_owner
                 and (room.status or "waiting") ~= "in_game"
                 and (room.player_count or 0) < (room.max_player_count or 4)
-                and state.realtime_status == "connected"
                 and not state.loading
                 and not state.saving
                 and not state.leaving,
@@ -256,7 +276,7 @@ end
 function RoomView:getInputs(state)
     local layout = resolveLayout(self)
     local room = state.room or {}
-    local is_owner = sameSteamID(room.owner_steam_id, state.steam_id)
+    local is_owner = isRequesterOwner(room, state)
     local input_x = layout.right_x + math.floor(20 * layout.scale)
     local input_width = layout.right_width - math.floor(40 * layout.scale)
     local input_y = layout.top_y + math.floor(132 * layout.scale)
@@ -283,7 +303,7 @@ end
 function RoomView:getModeButtons(state)
     local layout = resolveLayout(self)
     local room = state.room or {}
-    local is_owner = sameSteamID(room.owner_steam_id, state.steam_id)
+    local is_owner = isRequesterOwner(room, state)
     local input_x = layout.right_x + math.floor(20 * layout.scale)
     local input_width = layout.right_width - math.floor(40 * layout.scale)
     local input_y = layout.top_y + math.floor(132 * layout.scale)
@@ -323,14 +343,14 @@ function RoomView:getPlayerRows(state)
     local room = state.room or {}
     local players_by_seat = {}
     local my_player = nil
-    local is_owner = sameSteamID(room.owner_steam_id, state.steam_id)
+    local is_owner = isRequesterOwner(room, state)
 
     for _, player in ipairs(room.players or {}) do
         local seat_index = tonumber(player.seat_index)
         if seat_index ~= nil and seat_index >= 0 then
             players_by_seat[seat_index] = player
         end
-        if sameSteamID(player.steam_id, state.steam_id) then
+        if isSelfPlayer(player, state) then
             my_player = player
         end
     end
@@ -344,15 +364,13 @@ function RoomView:getPlayerRows(state)
         local player = players_by_seat[seat_index]
         local clickable = player == nil
             and my_player ~= nil
-            and state.realtime_status == "connected"
             and not state.loading
             and not state.saving
             and not state.leaving
             and (room.status or "waiting") ~= "in_game"
         local remove_action = nil
         if player ~= nil and player.is_bot and is_owner then
-            local remove_enabled = state.realtime_status == "connected"
-                and not state.loading
+            local remove_enabled = not state.loading
                 and not state.saving
                 and not state.leaving
                 and (room.status or "waiting") ~= "in_game"
@@ -374,7 +392,7 @@ function RoomView:getPlayerRows(state)
             width = hero_width - 36,
             height = layout.player_card_height,
             clickable = clickable,
-            is_self = player ~= nil and sameSteamID(player.steam_id, state.steam_id),
+            is_self = player ~= nil and isSelfPlayer(player, state),
             remove_action = remove_action,
         }
     end
@@ -416,7 +434,7 @@ end
 
 function RoomView:getInputAt(x, y, state)
     local room = state.room or {}
-    if not sameSteamID(room.owner_steam_id, state.steam_id) then
+    if not isRequesterOwner(room, state) then
         return nil
     end
 
