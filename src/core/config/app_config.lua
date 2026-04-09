@@ -1,6 +1,9 @@
 local Platform = require("src.infra.system.platform")
 
 local AppConfig = {
+    startup = {
+        mode = "dev", -- "dev", "practical", or legacy "pratical"
+    },
     network = {
         mode = "local", -- "local", "cloud_default", or "ip_based"
         local_server = {
@@ -66,6 +69,17 @@ local function normalizeMode(value)
         return mode
     end
     return "cloud_default"
+end
+
+local function normalizeStartupMode(value)
+    local mode = trim(value):lower()
+    if mode == "dev" then
+        return "dev"
+    end
+    if mode == "practical" or mode == "pratical" then
+        return "practical"
+    end
+    return "dev"
 end
 
 local function isChinaCountryCode(value)
@@ -146,6 +160,18 @@ end
 
 function AppConfig.getDefaultNetwork()
     return resolveStartupNetwork()
+end
+
+function AppConfig.getStartupMode()
+    return normalizeStartupMode((AppConfig.startup or {}).mode)
+end
+
+function AppConfig.isDevMode()
+    return AppConfig.getStartupMode() == "dev"
+end
+
+function AppConfig.isPracticalMode()
+    return AppConfig.getStartupMode() == "practical"
 end
 
 function AppConfig.buildBaseUrls(options)

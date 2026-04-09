@@ -58,7 +58,7 @@ local CARD_SETTINGS_SAVE_RETRY_SECONDS = 2.0
 local TARGET_ASPECT_W = 16
 local TARGET_ASPECT_H = 9
 local MAIN_MENU_CLEANUP_DEBOUNCE_SECONDS = 0.75
-local SHOW_LOCAL_TEST_SERVER_OPTION = true
+local SHOW_LOCAL_TEST_SERVER_OPTION = AppConfig.isDevMode()
 
 local function trimValue(value)
     return tostring(value or ""):match("^%s*(.-)%s*$")
@@ -1053,6 +1053,7 @@ function love.load()
     app.user_profile.accessories = normalizeAccessories(app.user_profile.accessories)
     app.steam_id_provider = SteamIDProvider.new({
         source = app.settings.steam_id_source,
+        startup_mode = AppConfig.getStartupMode(),
     })
     app.steam_id = resolveCurrentSteamID()
 

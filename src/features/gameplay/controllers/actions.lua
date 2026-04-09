@@ -7,6 +7,24 @@ local Actions = {}
 local TOAST_DURATION = 1.4
 local PINNED_GROUP_MAX_COUNT = 6
 
+local function shouldFallbackToLocalMainMenu(message)
+    local normalized = tostring(message or "")
+    local lower_normalized = string.lower(normalized)
+    return normalized == "Room is closed."
+        or normalized == "Current user is not in this game."
+        or (
+            lower_normalized:find("room", 1, true)
+            and (
+                lower_normalized:find("not found", 1, true)
+                or lower_normalized:find("closed", 1, true)
+            )
+        )
+        or (
+            lower_normalized:find("current user", 1, true)
+            and lower_normalized:find("not in this game", 1, true)
+        )
+end
+
 local function flattenPinnedGroups(groups)
     local flat = {}
     for _, group in ipairs(groups or {}) do
@@ -225,6 +243,10 @@ function Actions.leaveToMainMenu(controller)
     ))
 
     if not result.ok then
+        if shouldFallbackToLocalMainMenu(result.message) or controller.state.realtime_status ~= "connected" then
+            controller:handleLeftRoom()
+            return
+        end
         Actions.showToast(controller, result.message or I18n:t("gameplay.realtime_failed"))
         return
     end

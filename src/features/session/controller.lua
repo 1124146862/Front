@@ -11,7 +11,7 @@ local QUERY_DELAY = 0.45
 local SUBMIT_DELAY = 0.55
 local PRESS_FEEDBACK_DURATION = 0.11
 local NICKNAME_RANDOM_ONLY = true
-local MISSING_REAL_STEAM_ID_MESSAGE = "未检测到真实 SteamID，请通过 Steam 启动游戏并确认已登录。"
+local MISSING_REAL_STEAM_ID_MESSAGE = "未检测到真实 SteamID，请通过 Steam 启动游戏并确认已登录。日志: %TEMP%/guandan_steam_id_debug.log"
 
 local function utf8Length(text)
     local _, count = string.gsub(text or "", "[^\128-\193]", "")

@@ -11,6 +11,8 @@ local I18n = require("src.core.i18n.i18n")
 
 local NicknameCheckView = {}
 NicknameCheckView.__index = NicknameCheckView
+local REAL_STEAM_ID_PREFIX = "7656119"
+local REAL_STEAM_ID_LENGTH = 17
 
 local function clamp(value, minimum, maximum)
     if value < minimum then
@@ -26,6 +28,13 @@ end
 
 local function inside(frame, x, y)
     return x >= frame.x and x <= frame.x + frame.w and y >= frame.y and y <= frame.y + frame.h
+end
+
+local function isRealSteamID64(value)
+    local steam_id = tostring(value or "")
+    return #steam_id == REAL_STEAM_ID_LENGTH
+        and steam_id:match("^%d+$") ~= nil
+        and steam_id:sub(1, #REAL_STEAM_ID_PREFIX) == REAL_STEAM_ID_PREFIX
 end
 
 function NicknameCheckView.new(options)
@@ -171,7 +180,7 @@ function NicknameCheckView:draw(state)
     local press_feedback = state.press_feedback or {}
     local steam_id_value = tostring(state.steam_id or "")
 
-    if steam_id_value ~= "" then
+    if isRealSteamID64(steam_id_value) then
         local steam_id_text = string.format("%s: %s", I18n:t("session.steam_id"), steam_id_value)
         local steam_id_font = self.fonts:get("Caption")
         local steam_id_y = self.layout.steam_id.y + math.floor((self.layout.steam_id.h - steam_id_font:getHeight()) * 0.5) - 1

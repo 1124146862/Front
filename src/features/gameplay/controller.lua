@@ -335,6 +335,12 @@ function Controller.new(options)
 end
 
 function Controller:requestGameSnapshot()
+    if self.left_room_handled == true then
+        return
+    end
+    if tostring((self.state or {}).room_id or "") == "" then
+        return
+    end
     self.service:requestGameSnapshot()
     self.state.game_snapshot_request_attempts = (tonumber(self.state.game_snapshot_request_attempts) or 0) + 1
 end

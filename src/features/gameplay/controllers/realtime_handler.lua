@@ -27,6 +27,32 @@ local function showRoomClosedNotice(message)
     end
 end
 
+local function isTerminalRoomError(payload)
+    payload = payload or {}
+    local code = tostring(payload.code or "")
+    local message = tostring(payload.message or "")
+    local lower_message = string.lower(message)
+    if code == "room_not_found" then
+        return true
+    end
+    if message == "Room is closed." then
+        return true
+    end
+    if message == "Current user is not in this game." then
+        return true
+    end
+    if lower_message:find("room", 1, true) and (
+        lower_message:find("not found", 1, true)
+        or lower_message:find("closed", 1, true)
+    ) then
+        return true
+    end
+    if lower_message:find("current user", 1, true) and lower_message:find("not in this game", 1, true) then
+        return true
+    end
+    return false
+end
+
 function RealtimeHandler.handle(controller, packet)
     if controller.left_room_handled == true then
         return
@@ -50,6 +76,11 @@ function RealtimeHandler.handle(controller, packet)
         if status == "error" then
             state.action_waiting = false
             local reason = tostring(payload.message or I18n:t("gameplay.realtime_failed"))
+            if isTerminalRoomError({ message = reason }) then
+                showRoomClosedNotice(I18n:t("gameplay.room_closed_generic"))
+                controller:handleLeftRoom()
+                return
+            end
             print(string.format(
                 "[gameplay][ws] bridge_status=error room=%s steam_id=%s reason=%s",
                 tostring(state.room_id),
@@ -97,6 +128,12 @@ function RealtimeHandler.handle(controller, packet)
             new_match_player_count_invalid = I18n:t("gameplay.error_new_match_player_count_invalid"),
         }
         if payload.code == "unknown_room_command" then
+            return
+        end
+        if isTerminalRoomError(payload) then
+            state.action_waiting = false
+            showRoomClosedNotice(I18n:t("gameplay.room_closed_generic"))
+            controller:handleLeftRoom()
             return
         end
         state.action_waiting = false

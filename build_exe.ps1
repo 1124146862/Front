@@ -20,6 +20,7 @@ $exeFile = Join-Path $OutputDir "$ExeName.exe"
 
 $bridgeSourceDir = Join-Path $projectRoot "src\infra\steam\bridge"
 $bridgeOutputDir = Join-Path $OutputDir "steam_bridge"
+$steamAppId = "4582780"
 
 $rceditPath = Join-Path $projectRoot "tools\rcedit-x64.exe"
 
@@ -140,6 +141,8 @@ if (Test-Path $bridgeSourceDir) {
             Copy-Item-Safe -Source $sourceFile -Destination (Join-Path $bridgeOutputDir $bridgeFile)
         }
     }
+
+    Set-Content -LiteralPath (Join-Path $bridgeOutputDir "steam_appid.txt") -Value $steamAppId -Encoding ASCII
 }
 
 Write-Host ""

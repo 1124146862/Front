@@ -23,12 +23,12 @@ local MuteButton = require("src.core.ui.mute_button")
 local Toast = require("src.core.ui.toast")
 local LoadingOverlay = require("src.core.ui.loading_overlay")
 local I18n = require("src.core.i18n.i18n")
+local AppConfig = require("src.core.config.app_config")
 
 local GameplayView = {}
 GameplayView.__index = GameplayView
 
--- Test-only switch. Set to false before release to hide the debug autoplay button.
-local SHOW_DEBUG_AUTOPLAY_BUTTON = true
+local SHOW_DEBUG_AUTOPLAY_BUTTON = AppConfig.isDevMode()
 
 local function contains(bounds, x, y)
     return x >= bounds.x
