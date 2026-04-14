@@ -589,6 +589,15 @@ function GameplayView:getClickedCardId(x, y, state)
     })
 end
 
+function GameplayView:getHandCardSelectionOrder(state)
+    local layout = self:_getLayout()
+    return self.hand_area_overlay:getCardSelectionOrder(state, {
+        hand_frame = layout.hand_frame,
+        self_frame = layout.players.self,
+        hand_buttons = layout.hand_buttons,
+    })
+end
+
 function GameplayView:getControlAt(x, y, state)
     local game = state.game or {}
     local layout = self:_getLayout()

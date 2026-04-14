@@ -11,6 +11,7 @@ local QUERY_DELAY = 0.45
 local SUBMIT_DELAY = 0.55
 local PRESS_FEEDBACK_DURATION = 0.11
 local NICKNAME_RANDOM_ONLY = true
+local MISSING_SESSION_IDENTITY_MESSAGE = "Unable to initialize online identity. Please check your network connection and try again. Log: %TEMP%/guandan_steam_id_debug.log"
 local MISSING_REAL_STEAM_ID_MESSAGE = "未检测到真实 SteamID，请通过 Steam 启动游戏并确认已登录。日志: %TEMP%/guandan_steam_id_debug.log"
 
 local function utf8Length(text)
@@ -159,6 +160,7 @@ function Controller.new(options)
     self.state = assert(options and options.state, "SessionController requires state")
     self.service = assert(options and options.service, "SessionController requires service")
     self.steam_id_provider = options and options.steam_id_provider or nil
+    self.resolve_identity = options and options.resolve_identity or nil
     self.on_session_ready = assert(options and options.on_session_ready, "SessionController requires on_session_ready")
     self.pending_request = nil
     self.initial_fetch_result = options and options.initial_fetch_result or nil
@@ -255,7 +257,14 @@ function Controller:clearNickname()
 end
 
 function Controller:resolveSteamID()
-    local steam_id = self.initial_steam_id or (self.steam_id_provider and self.steam_id_provider:getSteamID()) or ""
+    local steam_id = self.initial_steam_id
+    if (not steam_id or steam_id == "") and self.resolve_identity then
+        steam_id = self.resolve_identity()
+    end
+    if (not steam_id or steam_id == "") and self.steam_id_provider then
+        steam_id = self.steam_id_provider:getSteamID()
+    end
+    steam_id = steam_id or ""
     self.state.steam_id = steam_id
     return steam_id
 end
@@ -265,7 +274,7 @@ function Controller:showMissingSteamIDError()
     self.state.query_pending = false
     self.state.submit_pending = false
     self.state.status_message = ""
-    self.state.error_message = MISSING_REAL_STEAM_ID_MESSAGE
+    self.state.error_message = MISSING_SESSION_IDENTITY_MESSAGE
     self.state.input_focused = false
     self.pending_request = nil
 end

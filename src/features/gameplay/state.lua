@@ -54,6 +54,7 @@ function State.create(room_id, user_profile, initial_game)
         arrange_remaining = 0,
         reveal_cards = false,
         selected_card_ids = {},
+        hand_drag_selection = nil,
         pinned_card_ids = {},
         pinned_card_groups = {},
         hovered_card_id = nil,

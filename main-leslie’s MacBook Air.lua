@@ -979,7 +979,6 @@ local function resolveSessionAndEnter()
                 exists = false,
                 message = identity_error or "Unable to initialize online identity.",
                 message = "未检测到真实 SteamID，请通过 Steam 启动游戏并确认已登录。",
-                message = identity_error or "Unable to initialize online identity.",
             },
             on_session_ready = function(user_profile)
                 showMainMenuPage(user_profile)
@@ -1121,7 +1120,7 @@ function love.load()
         source = app.settings.steam_id_source,
         startup_mode = AppConfig.getStartupMode(),
     })
-    app.steam_id = select(1, resolveCurrentIdentity())
+    app.steam_id = resolveCurrentSteamID()
 
     showWelcomePage()
 end

@@ -416,7 +416,7 @@ return {
         saving_config = "正在保存房间配置...",
         leaving = "正在离开房间...",
         only_owner_add_bot = "只有房主可以添加 Bot。",
-        adding_bot = "正在添加测试 Bot...",
+        adding_bot = "正在添加BOT...",
         only_owner_remove_bot = "只有房主可以删除 Bot。",
         removing_bot = "正在移除测试 Bot...",
         player_ready = "已准备",

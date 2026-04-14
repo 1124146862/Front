@@ -240,7 +240,7 @@ function RoomView:getButtons(state)
             width = mid_w,
             height = layout.button_height,
             hovered = state.hovered_control == "toggle_ready",
-            enabled = not state.loading and not state.saving and not state.leaving,
+            enabled = not state.room_missing and not state.loading and not state.saving and not state.leaving,
             variant = "primary",
         }),
         RoomPageActionButton.new({
@@ -263,6 +263,7 @@ function RoomView:getButtons(state)
             height = layout.button_height,
             hovered = state.hovered_control == "add_bot",
             enabled = is_owner
+                and not state.room_missing
                 and (room.status or "waiting") ~= "in_game"
                 and (room.player_count or 0) < (room.max_player_count or 4)
                 and not state.loading
@@ -293,7 +294,7 @@ function RoomView:getInputs(state)
             width = input_width,
             height = layout.input_height,
             focused = state.focused_field == "config_password",
-            editable = is_owner,
+            editable = is_owner and not state.room_missing,
             label_font_token = "TextBig",
             label_offset = math.floor(30 * layout.scale),
         }),
@@ -321,7 +322,7 @@ function RoomView:getModeButtons(state)
             width = button_width,
             height = button_height,
             hovered = state.hovered_control == "config_mode_classic",
-            enabled = is_owner and not state.loading and not state.saving and not state.leaving,
+            enabled = is_owner and not state.room_missing and not state.loading and not state.saving and not state.leaving,
             variant = current_mode == "classic" and "primary" or "secondary",
         }),
         RoomPageActionButton.new({
@@ -332,7 +333,7 @@ function RoomView:getModeButtons(state)
             width = button_width,
             height = button_height,
             hovered = state.hovered_control == "config_mode_level",
-            enabled = is_owner and not state.loading and not state.saving and not state.leaving,
+            enabled = is_owner and not state.room_missing and not state.loading and not state.saving and not state.leaving,
             variant = current_mode == "level" and "primary" or "secondary",
         }),
     }
@@ -364,13 +365,15 @@ function RoomView:getPlayerRows(state)
         local player = players_by_seat[seat_index]
         local clickable = player == nil
             and my_player ~= nil
+            and not state.room_missing
             and not state.loading
             and not state.saving
             and not state.leaving
             and (room.status or "waiting") ~= "in_game"
         local remove_action = nil
         if player ~= nil and player.is_bot and is_owner then
-            local remove_enabled = not state.loading
+            local remove_enabled = not state.room_missing
+                and not state.loading
                 and not state.saving
                 and not state.leaving
                 and (room.status or "waiting") ~= "in_game"
@@ -434,7 +437,7 @@ end
 
 function RoomView:getInputAt(x, y, state)
     local room = state.room or {}
-    if not isRequesterOwner(room, state) then
+    if state.room_missing or not isRequesterOwner(room, state) then
         return nil
     end
 

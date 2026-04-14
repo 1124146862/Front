@@ -246,6 +246,26 @@ local function maybeTriggerLowHandCountAlerts(controller, previous_game, current
     end
 end
 
+local function maybeTriggerPlayerFinishedAlert(controller, previous_game, current_game)
+    if type(previous_game) ~= "table" or type(current_game) ~= "table" then
+        return
+    end
+    if previous_game.game_id == nil or previous_game.hand_no ~= current_game.hand_no then
+        return
+    end
+
+    for seat_index = 0, 3 do
+        local previous_count = getSeatHandCount(previous_game, seat_index)
+        local current_count = getSeatHandCount(current_game, seat_index)
+        if previous_count ~= nil and current_count ~= nil then
+            if previous_count > 0 and current_count == 0 then
+                controller:playSfx("hand_count_alert")
+                return
+            end
+        end
+    end
+end
+
 local function resolvePlaySfxId(entry)
     local pattern_type = tostring((entry or {}).pattern_type or "")
     if pattern_type == "bomb" or pattern_type == "straight_flush" or pattern_type == "joker_bomb" then
@@ -372,6 +392,29 @@ local function appendPlayHistoryRow(state, row)
     return true
 end
 
+local function clampPlayHistoryScroll(state)
+    local max_scroll = math.max(#(state.play_history_entries or {}) - HAND_HISTORY_MAX_VISIBLE_ROWS, 0)
+    state.hand_history_scroll = math.max(0, math.min(max_scroll, tonumber(state.hand_history_scroll) or 0))
+end
+
+local function rebuildPlayHistoryState(state, current_game)
+    local current_hand_no = tostring((current_game or {}).hand_no or "")
+    local previous_scroll = tonumber((state or {}).hand_history_scroll) or 0
+    local last_action, fallback_index = getLastActionEntry(current_game)
+
+    state.play_history_hand_no = current_hand_no
+    state.play_history_last_seen_signature = buildHistorySignature(last_action, fallback_index)
+    state.play_history_entries = {}
+    state.play_history_signatures = {}
+
+    for index, entry in ipairs((current_game or {}).history or {}) do
+        appendPlayHistoryRow(state, buildPlayHistoryRow(current_game, entry, index))
+    end
+
+    state.hand_history_scroll = previous_scroll
+    clampPlayHistoryScroll(state)
+end
+
 local function syncPlayHistoryState(state, current_game)
     local current_hand_no = tostring((current_game or {}).hand_no or "")
     local last_action, fallback_index = getLastActionEntry(current_game)
@@ -383,16 +426,14 @@ local function syncPlayHistoryState(state, current_game)
     end
 
     if current_signature == "" or current_signature == tostring(state.play_history_last_seen_signature or "") then
-        local max_scroll = math.max(#(state.play_history_entries or {}) - HAND_HISTORY_MAX_VISIBLE_ROWS, 0)
-        state.hand_history_scroll = math.max(0, math.min(max_scroll, tonumber(state.hand_history_scroll) or 0))
+        clampPlayHistoryScroll(state)
         return
     end
 
     appendPlayHistoryRow(state, buildPlayHistoryRow(current_game, last_action, fallback_index))
     state.play_history_last_seen_signature = current_signature
 
-    local max_scroll = math.max(#(state.play_history_entries or {}) - HAND_HISTORY_MAX_VISIBLE_ROWS, 0)
-    state.hand_history_scroll = math.max(0, math.min(max_scroll, tonumber(state.hand_history_scroll) or 0))
+    clampPlayHistoryScroll(state)
 end
 
 local function hasTributeInfo(game)
@@ -410,6 +451,12 @@ end
 
 function SnapshotApplier.seedPlayHistory(state, game)
     syncPlayHistoryState(state or {}, game or {})
+end
+
+function SnapshotApplier.refreshLocalizedPresentation(state)
+    local safe_state = state or {}
+    safe_state.last_play = Helpers.buildLastPlayViewModel(safe_state.game)
+    rebuildPlayHistoryState(safe_state, safe_state.game or {})
 end
 
 function SnapshotApplier.apply(controller, snapshot)
@@ -491,6 +538,7 @@ function SnapshotApplier.apply(controller, snapshot)
     end
 
     state.hovered_card_id = nil
+    state.hand_drag_selection = nil
     state.hovered_control = nil
     state.hovered_tribute_card_id = nil
     state.hovered_tribute_control = nil
@@ -536,6 +584,7 @@ function SnapshotApplier.apply(controller, snapshot)
         state.arrange_progress_request_active = false
         state.arrange_progress_request_elapsed = 0
     end
+    maybeTriggerPlayerFinishedAlert(controller, previous_game, current_game)
     maybeTriggerLowHandCountAlerts(controller, previous_game, current_game)
     state.pass_markers = buildPassMarkers(current_game)
     local tribute_state = ((current_game or {}).tribute) or {}

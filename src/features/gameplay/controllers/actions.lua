@@ -37,6 +37,7 @@ end
 
 local function clearHandArrangementSelection(state)
     state.selected_card_ids = {}
+    state.hand_drag_selection = nil
     state.hovered_card_id = nil
     state.hovered_control = nil
 end

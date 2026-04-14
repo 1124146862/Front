@@ -146,6 +146,7 @@ end
 
 function PresentationFlow.beginHandPresentation(state)
     state.selected_card_ids = {}
+    state.hand_drag_selection = nil
     state.pinned_card_ids = {}
     state.pinned_card_groups = {}
     state.hovered_card_id = nil

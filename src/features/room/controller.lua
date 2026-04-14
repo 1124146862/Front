@@ -66,6 +66,25 @@ local function roomText(key, fallback)
     return value
 end
 
+local function isRoomMissingMessage(message)
+    local text = tostring(message or ""):lower()
+    return text:find("room not found", 1, true) ~= nil
+        or text:find("not found", 1, true) ~= nil
+end
+
+local function isRoomMissingResult(result)
+    if not result or result.ok then
+        return false
+    end
+    if tonumber(result.status) == 404 then
+        return true
+    end
+    if tostring(result.error_code or "") == "room_not_found" then
+        return true
+    end
+    return isRoomMissingMessage(result.message)
+end
+
 function Controller.new(options)
     local self = setmetatable({}, Controller)
 
@@ -231,12 +250,17 @@ function Controller:handleRoomResult(result)
     self.state.leaving = false
 
     if not result.ok then
+        self.state.room_missing = isRoomMissingResult(result)
+        if self.state.room_missing then
+            self.state.room = nil
+        end
         self.state.error_message = result.message or I18n:t("room.load_failed")
         self.state.status_message = ""
         return
     end
 
     self.state.room = result.room or self.state.room
+    self.state.room_missing = false
     self.state.error_message = ""
     self.state.status_message = result.message or I18n:t("room.room_refreshed")
     self:syncConfigInputs()
@@ -294,6 +318,10 @@ function Controller:handleRealtimePacket(packet)
 
     if packet.type == "error" then
         local payload = packet.payload or {}
+        self.state.room_missing = isRoomMissingMessage(payload.message)
+        if self.state.room_missing then
+            self.state.room = nil
+        end
         self.state.error_message = payload.message or I18n:t("room.load_failed")
         self.state.status_message = ""
         self.state.loading = false
@@ -371,16 +399,30 @@ function Controller:saveConfigWithMode(mode)
 end
 
 function Controller:leaveRoom()
+    if self.state.room_missing then
+        self.state.leaving = false
+        self.service:disconnectRoomChannel()
+        self.on_back_to_lobby()
+        return
+    end
+
     self.state.leaving = true
     self.state.error_message = ""
     self.state.status_message = I18n:t("room.leaving")
     local result = self.service:leaveRoom(self.state.room_id, self.state.steam_id)
     self.state.leaving = false
     if not result.ok then
+        if isRoomMissingResult(result) then
+            self.state.room_missing = true
+            self.service:disconnectRoomChannel()
+            self.on_back_to_lobby()
+            return
+        end
         self.state.error_message = result.message or I18n:t("room.load_failed")
         self.state.status_message = ""
         return
     end
+    self.state.room_missing = false
     self.service:disconnectRoomChannel()
     self.on_back_to_lobby()
 end

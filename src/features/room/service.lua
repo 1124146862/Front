@@ -28,6 +28,8 @@ local function wrapRoomResponse(response, fallback_message)
     if not response.ok then
         return {
             ok = false,
+            status = response.status,
+            error_code = response.error_code,
             message = response.error or fallback_message or I18n:t("room.load_failed"),
         }
     end
@@ -117,6 +119,8 @@ function RoomService:leaveRoom(room_id, steam_id)
     if not response.ok then
         return {
             ok = false,
+            status = response.status,
+            error_code = response.error_code,
             deleted = false,
             message = response.error or I18n:t("room.load_failed"),
         }

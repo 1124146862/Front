@@ -81,6 +81,7 @@ function HandAreaOverlay.new(options)
     self.card_view = CardView.new()
     self.cards = {}
     self.card_order = {}
+    self.selection_order = {}
     self.pin_button = HandPinButton.new()
     self.rank_button = HandRankButton.new()
 
@@ -239,6 +240,33 @@ local function buildPinnedArrangement(groups)
     }
 end
 
+local function buildSelectionOrder(arrangement)
+    local ordered_slots = {}
+    for _, slot in ipairs((arrangement or {}).slots or {}) do
+        ordered_slots[#ordered_slots + 1] = {
+            card_id = slot.card_id,
+            visual_column = tonumber(slot.visual_column) or 0,
+            row_index = tonumber(slot.row_index) or 0,
+        }
+    end
+
+    table.sort(ordered_slots, function(left, right)
+        if left.visual_column ~= right.visual_column then
+            return left.visual_column < right.visual_column
+        end
+        if left.row_index ~= right.row_index then
+            return left.row_index < right.row_index
+        end
+        return tostring(left.card_id) < tostring(right.card_id)
+    end)
+
+    local ordered_card_ids = {}
+    for _, slot in ipairs(ordered_slots) do
+        ordered_card_ids[#ordered_card_ids + 1] = slot.card_id
+    end
+    return ordered_card_ids
+end
+
 function HandAreaOverlay:_syncCards(state, layout)
     local game = state.game or {}
     local hand_cards = game.my_hand_cards or {}
@@ -273,6 +301,7 @@ function HandAreaOverlay:_syncCards(state, layout)
         wildcard_card = game.wildcard_card,
     })
     local merged_arrangement = mergeArrangements(pinned_arrangement, normal_arrangement)
+    self.selection_order = buildSelectionOrder(merged_arrangement)
     local anchors = self.layout_builder:build(self:_getArea(layout), merged_arrangement)
 
     local alive = {}
@@ -318,6 +347,16 @@ function HandAreaOverlay:_syncCards(state, layout)
             self.cards[card_id] = nil
         end
     end
+end
+
+function HandAreaOverlay:getCardSelectionOrder(state, layout)
+    self:_syncCards(state, layout)
+
+    local ordered_card_ids = {}
+    for index, card_id in ipairs(self.selection_order or {}) do
+        ordered_card_ids[index] = card_id
+    end
+    return ordered_card_ids
 end
 
 function HandAreaOverlay:update(dt, state, layout)

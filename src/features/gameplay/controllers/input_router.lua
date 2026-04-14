@@ -55,6 +55,106 @@ local function canInteractWithHand(state)
     return phase == "playing" or phase == "hand_loading"
 end
 
+local function copySelectedCardIds(selected_card_ids)
+    local copied = {}
+    for card_id, is_selected in pairs(selected_card_ids or {}) do
+        if is_selected == true then
+            copied[card_id] = true
+        end
+    end
+    return copied
+end
+
+local function buildCardIndexMap(card_ids)
+    local index_by_card_id = {}
+    for index, card_id in ipairs(card_ids or {}) do
+        index_by_card_id[card_id] = index
+    end
+    return index_by_card_id
+end
+
+local function applyHandDragPreview(state, drag_selection, selection_order)
+    local next_selected_card_ids = copySelectedCardIds((drag_selection or {}).initial_selected_card_ids)
+    local anchor_card_id = drag_selection and drag_selection.anchor_card_id or nil
+    local current_card_id = drag_selection and drag_selection.current_card_id or nil
+    local deselect_mode = drag_selection and drag_selection.deselect_mode == true
+    if anchor_card_id == nil then
+        state.selected_card_ids = next_selected_card_ids
+        return false
+    end
+
+    local index_by_card_id = buildCardIndexMap(selection_order)
+    local anchor_index = index_by_card_id[anchor_card_id]
+    local current_index = index_by_card_id[current_card_id] or anchor_index
+    if anchor_index == nil or current_index == nil then
+        if deselect_mode then
+            next_selected_card_ids[anchor_card_id] = nil
+        else
+            next_selected_card_ids[anchor_card_id] = true
+        end
+        state.selected_card_ids = next_selected_card_ids
+        return false
+    end
+
+    local start_index = math.min(anchor_index, current_index)
+    local end_index = math.max(anchor_index, current_index)
+    for index = start_index, end_index do
+        local card_id = selection_order[index]
+        if card_id then
+            if deselect_mode then
+                next_selected_card_ids[card_id] = nil
+            else
+                next_selected_card_ids[card_id] = true
+            end
+        end
+    end
+    state.selected_card_ids = next_selected_card_ids
+    return anchor_index ~= current_index
+end
+
+local function beginHandDragSelection(controller, state, view, card_id)
+    state.hand_drag_selection = {
+        anchor_card_id = card_id,
+        current_card_id = card_id,
+        initial_selected_card_ids = copySelectedCardIds(state.selected_card_ids),
+        deselect_mode = state.selected_card_ids[card_id] == true,
+        did_drag = false,
+    }
+    applyHandDragPreview(state, state.hand_drag_selection, view:getHandCardSelectionOrder(state))
+    controller:playSfx("card_click")
+end
+
+local function updateHandDragSelection(state, view, card_id)
+    local drag_selection = state.hand_drag_selection
+    if type(drag_selection) ~= "table" or card_id == nil or drag_selection.current_card_id == card_id then
+        return
+    end
+
+    drag_selection.current_card_id = card_id
+    local did_drag = applyHandDragPreview(state, drag_selection, view:getHandCardSelectionOrder(state))
+    drag_selection.did_drag = drag_selection.did_drag or did_drag
+end
+
+local function finalizeHandDragSelection(state)
+    local drag_selection = state.hand_drag_selection
+    if type(drag_selection) ~= "table" then
+        return
+    end
+
+    if not drag_selection.did_drag then
+        local next_selected_card_ids = copySelectedCardIds(drag_selection.initial_selected_card_ids)
+        local anchor_card_id = drag_selection.anchor_card_id
+        if next_selected_card_ids[anchor_card_id] then
+            next_selected_card_ids[anchor_card_id] = nil
+        else
+            next_selected_card_ids[anchor_card_id] = true
+        end
+        state.selected_card_ids = next_selected_card_ids
+    end
+
+    state.hand_drag_selection = nil
+end
+
 function InputRouter.mousemoved(controller, x, y, view)
     local state = controller.state
 
@@ -183,6 +283,9 @@ function InputRouter.mousemoved(controller, x, y, view)
         return
     end
     state.hovered_card_id = view:getHoveredCardId(x, y, state)
+    if state.hand_drag_selection then
+        updateHandDragSelection(state, view, state.hovered_card_id)
+    end
 end
 
 function InputRouter.mousepressed(controller, x, y, button, view)
@@ -493,12 +596,7 @@ function InputRouter.mousepressed(controller, x, y, button, view)
         return false
     end
 
-    if state.selected_card_ids[card_id] then
-        state.selected_card_ids[card_id] = nil
-    else
-        state.selected_card_ids[card_id] = true
-    end
-    controller:playSfx("card_click")
+    beginHandDragSelection(controller, state, view, card_id)
     return false
 end
 
@@ -512,6 +610,15 @@ function InputRouter.mousereleased(controller, x, y, button, view)
         state.settings_background_preview_seed = nil
         return true
     end
+
+    if state.hand_drag_selection then
+        finalizeHandDragSelection(state)
+        if canInteractWithHand(state) then
+            state.hovered_card_id = view:getHoveredCardId(x, y, state)
+        end
+        return false
+    end
+
     return false
 end
 
@@ -559,6 +666,7 @@ function InputRouter.keypressed(controller, key)
             return
         end
         state.selected_card_ids = {}
+        state.hand_drag_selection = nil
         state.selected_tribute_card_id = nil
         state.hovered_card_id = nil
         state.hovered_control = nil

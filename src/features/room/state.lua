@@ -9,6 +9,7 @@ function State.create(room_id, user_profile, options)
         steam_id = user_profile.steam_id,
         nickname = user_profile.nickname,
         room = nil,
+        room_missing = false,
         loading = false,
         saving = false,
         leaving = false,

@@ -581,6 +581,7 @@ function Controller:changeLanguage(delta)
     end
 
     self.state.settings_language_index = next_index
+    SnapshotApplier.refreshLocalizedPresentation(self.state)
 end
 
 function Controller:changeTargetFps(delta)

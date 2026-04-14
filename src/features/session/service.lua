@@ -21,6 +21,40 @@ function SessionService.new(options)
     return self
 end
 
+function SessionService:allocateGuestIdentity()
+    local response = self.http_client:post("/session/identity/guest", {})
+
+    if not response.ok then
+        return {
+            ok = false,
+            player_id = nil,
+            steam_id = nil,
+            identity_source = "guest",
+            message = response.error or I18n:t("session.fetch_failed"),
+        }
+    end
+
+    local data = response.data or {}
+    local player_id = tostring(data.player_id or data.steam_id or "")
+    if player_id == "" then
+        return {
+            ok = false,
+            player_id = nil,
+            steam_id = nil,
+            identity_source = "guest",
+            message = I18n:t("session.fetch_failed"),
+        }
+    end
+
+    return {
+        ok = true,
+        player_id = player_id,
+        steam_id = player_id,
+        identity_source = tostring(data.identity_source or "guest"),
+        message = data.message or "identity_ready",
+    }
+end
+
 function SessionService:fetchNicknameBySteamID(steam_id)
     local response = self.http_client:get("/session/nickname", {
         steam_id = steam_id,

@@ -31,22 +31,18 @@ for index, rank in ipairs(SEQUENCE_RANKS) do
     SEQUENCE_RANK_INDEX[rank] = index
 end
 
-local function utf8Label(...)
-    return utf8 and utf8.char(...) or ""
-end
-
 local LAST_PLAY_PATTERN_LABELS = {
     zh = {
-        single = utf8Label(0x5355, 0x5F20),
-        pair = utf8Label(0x5BF9, 0x5B50),
-        triple = utf8Label(0x4E09, 0x5F20),
-        full_house = utf8Label(0x4E09, 0x5E26, 0x4E8C),
-        straight = utf8Label(0x987A, 0x5B50),
-        straight_flush = utf8Label(0x540C, 0x82B1, 0x987A),
-        bomb = utf8Label(0x70B8, 0x5F39),
-        joker_bomb = utf8Label(0x70B8, 0x5F39),
-        consecutive_pairs = utf8Label(0x8FDE, 0x5BF9),
-        triple_run = utf8Label(0x94A2, 0x677F),
+        single = "单张",
+        pair = "对子",
+        triple = "三张",
+        full_house = "三带二",
+        straight = "顺子",
+        straight_flush = "同花顺",
+        bomb = "炸弹",
+        joker_bomb = "王炸",
+        consecutive_pairs = "连对",
+        triple_run = "钢板",
     },
     en = {
         single = "Single",

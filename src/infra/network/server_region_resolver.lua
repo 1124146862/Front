@@ -1,3 +1,15 @@
+do
+    local AppConfig = require("src.core.config.app_config")
+
+    local Resolver = {}
+
+    function Resolver.resolveDefaultNetwork()
+        return AppConfig.getDefaultNetwork()
+    end
+
+    return Resolver
+end
+
 local AppConfig = require("src.core.config.app_config")
 local HttpClient = require("src.infra.network.http_client")
 

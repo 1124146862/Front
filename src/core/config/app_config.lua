@@ -1,22 +1,15 @@
-local Platform = require("src.infra.system.platform")
-
 local AppConfig = {
     startup = {
-        mode = "dev", -- "dev", "practical", or legacy "pratical"
+        mode = "practical", -- "dev", "practical", or legacy "pratical"
+        server = "domestic", -- "local", "domestic", or "overseas"; "local" is only allowed in "dev"
     },
     network = {
-        mode = "local", -- "local", "cloud_default", or "ip_based"
-        local_server = {
-            host = "127.0.0.1",
-            port = 8123,
-            use_tls = false,
-        },
-        cloud_default_server = {
-                host = "3.18.105.105",
+        servers = {
+            ["local"] = {
+                host = "127.0.0.1",
                 port = 8123,
                 use_tls = false,
-        },
-        ip_based_servers = {
+            },
             domestic = {
                 host = "114.55.113.236",
                 port = 8123,
@@ -33,6 +26,12 @@ local AppConfig = {
 
 local startup_network_cache = nil
 local startup_network_resolved = false
+local startup_server_key_cache = nil
+local SERVER_KEYS = {
+    "local",
+    "domestic",
+    "overseas",
+}
 
 local function trim(value)
     return tostring(value or ""):match("^%s*(.-)%s*$")
@@ -63,12 +62,23 @@ local function copyNetwork(network)
     }
 end
 
-local function normalizeMode(value)
-    local mode = trim(value)
-    if mode == "local" or mode == "cloud_default" or mode == "ip_based" then
-        return mode
+local function shallowCopy(source)
+    local copy = {}
+    for key, value in pairs(source or {}) do
+        copy[key] = value
     end
-    return "cloud_default"
+    return copy
+end
+
+local function normalizeServerKey(value)
+    local server_key = trim(value):lower()
+    if server_key == "local_test" then
+        return "local"
+    end
+    if server_key == "local" or server_key == "domestic" or server_key == "overseas" then
+        return server_key
+    end
+    return "domestic"
 end
 
 local function normalizeStartupMode(value)
@@ -82,35 +92,34 @@ local function normalizeStartupMode(value)
     return "dev"
 end
 
-local function isChinaCountryCode(value)
-    local code = trim(value):upper()
-    return code == "CN" or code == "CHN" or code == "CHINA"
+local function isServerAllowedInMode(server_key, startup_mode)
+    if normalizeServerKey(server_key) == "local" then
+        return startup_mode == "dev"
+    end
+    return true
 end
 
-local function detectCountryCode()
-    local curl_command = Platform.isWindows() and "curl.exe" or "curl"
-    local command = table.concat({
-        curl_command,
-        "--silent",
-        "--show-error",
-        "--max-time",
-        "3",
-        "https://ipapi.co/json/",
-    }, " ")
+local function isLoopbackHost(value)
+    local host = trim(value):lower()
+    return host == "127.0.0.1" or host == "localhost"
+end
 
-    local pipe = io.popen(command, "r")
-    if not pipe then
-        return nil
+local function getServerPresetsTable()
+    return (((AppConfig or {}).network or {}).servers) or {}
+end
+
+local function getRawServerPreset(server_key)
+    local presets = getServerPresetsTable()
+    return presets[normalizeServerKey(server_key)]
+end
+
+local function resolveStartupServerKey()
+    local startup_mode = AppConfig.getStartupMode()
+    local requested_server_key = normalizeServerKey(((AppConfig or {}).startup or {}).server)
+    if isServerAllowedInMode(requested_server_key, startup_mode) then
+        return requested_server_key, "configured"
     end
-
-    local body = pipe:read("*a") or ""
-    pipe:close()
-
-    local country_code = body:match('"country_code"%s*:%s*"([^"]+)"')
-        or body:match('"countryCode"%s*:%s*"([^"]+)"')
-        or body:match('"country"%s*:%s*"([^"]+)"')
-
-    return trim(country_code)
+    return "domestic", "startup_mode_fallback"
 end
 
 local function resolveStartupNetwork()
@@ -120,39 +129,26 @@ local function resolveStartupNetwork()
 
     startup_network_resolved = true
 
-    local mode = normalizeMode((AppConfig.network or {}).mode)
-    local selected = nil
-    local country_code = nil
-    local selection_source = mode
-
-    if mode == "local" then
-        selected = AppConfig.network.local_server
-    elseif mode == "cloud_default" then
-        selected = AppConfig.network.cloud_default_server
-    else
-        country_code = detectCountryCode()
-        if isChinaCountryCode(country_code) then
-            selected = AppConfig.network.ip_based_servers.domestic
-            selection_source = "ip_based_cn"
-        elseif trim(country_code) ~= "" then
-            selected = AppConfig.network.ip_based_servers.overseas
-            selection_source = "ip_based_overseas"
-        else
-            selected = AppConfig.network.ip_based_servers.domestic
-            selection_source = "ip_based_fallback"
-        end
+    local startup_mode = AppConfig.getStartupMode()
+    local server_key, selection_source = resolveStartupServerKey()
+    local selected = getRawServerPreset(server_key)
+    if not selected then
+        server_key = "domestic"
+        selection_source = "missing_server_fallback"
+        selected = getRawServerPreset(server_key)
     end
 
     startup_network_cache = copyNetwork(selected)
+    startup_server_key_cache = server_key
 
     print(string.format(
-        "[network] startup_mode=%s source=%s host=%s port=%s use_tls=%s country=%s",
-        tostring(mode),
+        "[network] startup_mode=%s server=%s source=%s host=%s port=%s use_tls=%s",
+        tostring(startup_mode),
+        tostring(server_key),
         tostring(selection_source),
         tostring(startup_network_cache.host),
         tostring(startup_network_cache.port),
-        tostring(startup_network_cache.use_tls),
-        tostring(country_code or "")
+        tostring(startup_network_cache.use_tls)
     ))
 
     return copyNetwork(startup_network_cache)
@@ -172,6 +168,83 @@ end
 
 function AppConfig.isPracticalMode()
     return AppConfig.getStartupMode() == "practical"
+end
+
+function AppConfig.getStartupServerKey()
+    if not startup_network_resolved then
+        resolveStartupNetwork()
+    end
+    return startup_server_key_cache
+end
+
+function AppConfig.isServerSelectable(server_key)
+    return isServerAllowedInMode(server_key, AppConfig.getStartupMode())
+end
+
+function AppConfig.getServerPreset(server_key)
+    local preset = getRawServerPreset(server_key)
+    if not preset then
+        return nil
+    end
+    return copyNetwork(preset)
+end
+
+function AppConfig.getServerPresets()
+    local presets = {}
+    for _, server_key in ipairs(SERVER_KEYS) do
+        presets[server_key] = AppConfig.getServerPreset(server_key)
+    end
+    return presets
+end
+
+function AppConfig.isLocalNetwork(network)
+    if not network then
+        return false
+    end
+
+    if isLoopbackHost(network.host) then
+        return true
+    end
+
+    local local_preset = AppConfig.getServerPreset("local")
+    return local_preset ~= nil
+        and trim(network.host):lower() == trim(local_preset.host):lower()
+        and numberValue(network.port, local_preset.port) == local_preset.port
+        and boolValue(network.use_tls) == local_preset.use_tls
+end
+
+function AppConfig.sanitizeNetworkSettings(settings)
+    local sanitized = shallowCopy(settings)
+    if AppConfig.isDevMode() then
+        return sanitized, false
+    end
+
+    local current_network = {
+        host = sanitized.server_host,
+        port = sanitized.server_port,
+        use_tls = sanitized.server_use_tls,
+    }
+    if not AppConfig.isLocalNetwork(current_network) then
+        return sanitized, false
+    end
+
+    local fallback_network = AppConfig.getDefaultNetwork()
+    local fallback_urls = AppConfig.buildBaseUrls(fallback_network)
+    sanitized.server_host = fallback_network.host
+    sanitized.server_port = fallback_network.port
+    sanitized.server_use_tls = fallback_network.use_tls
+    sanitized.server_http_base_url = fallback_urls.http
+    sanitized.server_ws_base_url = fallback_urls.ws
+
+    print(string.format(
+        "[network] startup_mode=%s rejected_local_override=true fallback_server=%s fallback_host=%s fallback_port=%s",
+        tostring(AppConfig.getStartupMode()),
+        tostring(AppConfig.getStartupServerKey()),
+        tostring(fallback_network.host),
+        tostring(fallback_network.port)
+    ))
+
+    return sanitized, true
 end
 
 function AppConfig.buildBaseUrls(options)
